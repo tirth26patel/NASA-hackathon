@@ -1,35 +1,32 @@
-import os
-from PyPDF2 import PdfReader
+for idx, row in df.iterrows():
+    pmc_url = str(row[pdf_column])
+    if not pmc_url.startswith("http"):
+        print(f"Skipping row {idx}: invalid URL → {pmc_url}")
+        continue
 
-PDF_DIR = r"C:\Users\Kavan\OneDrive\Desktop\Hackathon\project\experiments"
-OUTPUT_DIR = r"C:\Users\Kavan\OneDrive\Desktop\Hackathon\project\pdf_texts"
+    # Convert article page URL to PDF URL
+    if "ncbi.nlm.nih.gov/pmc/articles/" in pmc_url:
+        if not pmc_url.endswith("/"):
+            pmc_url += "/"
+        pdf_url = pmc_url + "pdf"
+    else:
+        pdf_url = pmc_url   # in case some links are already PDF
+    
+    # Derive a filename
+    parsed = urlparse(pdf_url)
+    fname = os.path.basename(parsed.path)
+    if fname == "pdf":  # handle PMC pdf endpoint
+        fname = f"PMC_{idx}.pdf"
 
-# Create output folder if it doesn't exist
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out_path = os.path.join(output_folder, fname)
 
-def extract_text_from_pdf(pdf_path):
-    text = ""
-    reader = PdfReader(pdf_path)
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
-    return text.strip()
-
-def convert_all_pdfs():
-    for filename in os.listdir(PDF_DIR):
-        if filename.lower().endswith(".pdf"):
-            pdf_path = os.path.join(PDF_DIR, filename)
-            txt_filename = os.path.splitext(filename)[0] + ".txt"
-            txt_path = os.path.join(OUTPUT_DIR, txt_filename)
-
-            print(f"📄 Processing: {filename}")
-            text = extract_text_from_pdf(pdf_path)
-
-            with open(txt_path, "w", encoding="utf-8") as f:
-                f.write(text)
-
-            print(f"✅ Saved: {txt_path}")
-
-if __name__ == "__main__":
-    convert_all_pdfs()
+    # Download the PDF
+    try:
+        print(f"Downloading {pdf_url} → {out_path}")
+        pdf_resp = requests.get(pdf_url, timeout=30)
+        pdf_resp.raise_for_status()
+        with open(out_path, "wb") as f:
+            f.write(pdf_resp.content)
+        print("✅ Success")
+    except Exception as e:
+        print(f"❌ Failed for {pdf_url}: {e}")
